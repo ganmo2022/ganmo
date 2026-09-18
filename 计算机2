@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="计算器">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#000000">
+<title>计算器</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%;background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+    -webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+  body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    padding:calc(env(safe-area-inset-top,0px) + 14px) calc(env(safe-area-inset-right,0px) + 14px)
+            calc(env(safe-area-inset-bottom,0px) + 14px) calc(env(safe-area-inset-left,0px) + 14px);
+    overflow-x:hidden;touch-action:manipulation}
+
+  .app{display:flex;align-items:stretch;gap:18px}
+
+  /* ========== 历史面板 ========== */
+  .history-panel{width:258px;flex:none;display:flex;flex-direction:column;overflow:hidden;
+    padding:16px 4px 16px 16px;border-radius:24px;background:#1c1c1e;
+    border:1px solid rgba(255,255,255,.06)}
+  .hp-header{flex:none;display:flex;align-items:center;justify-content:space-between;
+    padding:0 10px 12px 2px;border-bottom:1px solid rgba(255,255,255,.07)}
+  .hp-title{font-size:15px;font-weight:600;color:#fff}
+  .hp-clear{border:none;padding:5px 9px;border-radius:8px;font-family:inherit;font-size:13px;
+    font-weight:500;color:#ff9f0a;background:transparent;cursor:pointer}
+  .hp-clear:active{background:rgba(255,159,10,.24)}
+  .hp-clear:disabled{color:#48484a;cursor:default;background:transparent}
+  .hp-list{flex:1;min-height:0;margin-top:8px;padding-right:10px;overflow-y:auto;
+    overscroll-behavior:contain;-webkit-overflow-scrolling:touch;display:flex;
+    flex-direction:column;gap:2px;scrollbar-width:thin;scrollbar-color:#3a3a3c transparent}
+  .hp-list::-webkit-scrollbar{width:5px}
+  .hp-list::-webkit-scrollbar-thumb{background:#3a3a3c;border-radius:3px}
+  .hp-item{padding:10px 12px;border-radius:13px;text-align:right;cursor:pointer}
+  .hp-item:active{background:#3a3a3c}
+  .hp-item.new{animation:hpIn .26s ease}
+  @keyframes hpIn{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:translateY(0)}}
+  .hp-expr{margin-bottom:3px;font-size:13px;color:#8e8e93;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .hp-result{font-size:20px;font-weight:400;letter-spacing:-.3px;color:#fff;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hp-empty{flex:1;display:flex;align-items:center;justify-content:center;
+    padding:24px 0;font-size:14px;color:#48484a}
+
+  /* ========== 计算器 ========== */
+  .calculator{width:320px;flex:none;padding:12px 14px 18px;background:#000}
+  .screen{position:relative;min-height:132px;padding:6px 4px 14px;display:flex;
+    flex-direction:column;justify-content:flex-end;align-items:flex-end;overflow:hidden}
+  .mem-indicator{position:absolute;top:4px;left:6px;font-size:13px;font-weight:600;
+    letter-spacing:.5px;color:#ff9f0a;opacity:0;transform:scale(.85);
+    transition:opacity .18s ease,transform .18s ease}
+  .mem-indicator.on{opacity:1;transform:scale(1)}
+  .history{width:100%;min-height:20px;margin-bottom:4px;font-size:16px;color:#8e8e93;
+    text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .display{width:100%;font-size:62px;font-weight:300;line-height:1.1;letter-spacing:-1px;
+    color:#fff;text-align:right;white-space:nowrap;overflow:hidden;transition:font-size .1s ease}
+  .display.error{color:#ff453a}
+
+  .memory-keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .memory-keys button{height:32px;border:none;border-radius:999px;font-family:inherit;
+    font-size:13px;font-weight:600;letter-spacing:.3px;color:#ff9f0a;background:#1c1c1e;cursor:pointer}
+  .memory-keys button:active,.memory-keys button.pressed{background:#3a3a3c}
+  .memory-keys button:disabled{color:#48484a;cursor:default}
+
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:11px}
+  .key{height:62px;border:none;border-radius:999px;font-family:inherit;font-size:30px;
+    font-weight:400;color:#fff;background:#333;cursor:pointer;
+    transition:background .1s ease,color .1s ease,transform .07s ease}
+  .key.num:active,.key.num.pressed{background:#737373}
+  .key.fn{background:#a5a5a5;color:#000;font-size:27px;font-weight:500}
+  .key.fn:active,.key.fn.pressed{background:#d9d9d9}
+  .key.op{background:#ff9f0a;color:#fff;font-size:34px}
+  .key.op:active,.key.op.pressed{background:#ffc46b}
+  .key.op.active{background:#fff;color:#ff9f0a}
+  .key.zero{grid-column:span 2;text-align:left;padding-left:24px}
+
+  @media (max-width:700px){
+    body{align-items:flex-start}
+    .app{flex-direction:column;align-items:center;gap:14px;width:100%}
+    .calculator{width:100%;max-width:340px;padding:8px 10px 14px}
+    .history-panel{order:2;width:100%;max-width:340px;max-height:190px;
+      padding:14px 4px 14px 14px}
+    .keys{gap:10px}
+    .key{height:58px;font-size:26px}
+    .key.op{font-size:30px}
+    .key.fn{font-size:23px}
+    .display{font-size:54px}
+  }
+  @media (max-height:500px){
+    .key{height:48px;font-size:22px}
+    .key.op{font-size:26px}
+    .key.fn{font-size:20px}
+    .memory-keys button{height:28px}
+    .display{font-size:44px}
+    .screen{min-height:96px}
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="history-panel">
+    <div class="hp-header">
+      <span class="hp-title">历史记录</span>
+      <button class="hp-clear" id="hpClearBtn" disabled>清空</button>
+    </div>
+    <div class="hp-list" id="hpList"></div>
+  </aside>
+
+  <main class="calculator">
+    <div class="screen">
+      <div class="mem-indicator" id="memIndicator">M</div>
+      <div class="history" id="history"></div>
+      <div class="display" id="display">0</div>
+    </div>
+
+    <div class="memory-keys">
+      <button data-key="mc" id="mcBtn">MC</button>
+      <button data-key="mr" id="mrBtn">MR</button>
+      <button data-key="m-plus">M+</button>
+      <button data-key="m-minus">M−</button>
+    </div>
+
+    <div class="keys" id="keys">
+      <button class="key fn"  data-key="clear" id="clearBtn">AC</button>
+      <button class="key fn"  data-key="negate">±</button>
+      <button class="key fn"  data-key="percent">%</button>
+      <button class="key op"  data-key="/">÷</button>
+
+      <button class="key num" data-key="7">7</button>
+      <button class="key num" data-key="8">8</button>
+      <button class="key num" data-key="9">9</button>
+      <button class="key op"  data-key="*">×</button>
+
+      <button class="key num" data-key="4">4</button>
+      <button class="key num" data-key="5">5</button>
+      <button class="key num" data-key="6">6</button>
+      <button class="key op"  data-key="-">−</button>
+
+      <button class="key num" data-key="1">1</button>
+      <button class="key num" data-key="2">2</button>
+      <button class="key num" data-key="3">3</button>
+      <button class="key op"  data-key="+">+</button>
+
+      <button class="key num zero" data-key="0">0</button>
+      <button class="key num" data-key=".">.</button>
+      <button class="key op"  data-key="=">=</button>
+    </div>
+  </main>
+
+</div>
+
+<script>
+/* ===== 动态生成 iOS 主屏图标 ===== */
+(function () {
+  function makeIcon(size) {
+    try {
+      var c = document.createElement('canvas');
+      c.width = c.height = size;
+      var ctx = c.getContext('2d');
+      var g = ctx.createLinearGradient(0, 0, 0, size);
+      g.addColorStop(0, '#2c2c2e');
+      g.addColorStop(1, '#000');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, size, size);
+
+      // 白色等号
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(size * 0.34, size * 0.28, size * 0.32, size * 0.05);
+      ctx.fillRect(size * 0.34, size * 0.41, size * 0.32, size * 0.05);
+
+      // 橙色圆点
+      ctx.fillStyle = '#ff9f0a';
+      ctx.beginPath();
+      ctx.arc(size * 0.5, size * 0.65, size * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+
+      return c.toDataURL('image/png');
+    } catch (e) { return null; }
+  }
+
+  var href = makeIcon(180);
+  if (href) {
+    var l = document.createElement('link');
+    l.rel = 'apple-touch-icon';
+    l.sizes = '180x180';
+    l.href = href;
+    document.head.appendChild(l);
+  }
+})();
+
+(function () {
+  'use strict';
+
+  /* ==================== 状态 ==================== */
+  var state = {
+    current: '0',
+    previous: null,
+    operator: null,
+    waiting: false,
+    repeatOp: null,
+    repeatOperand: null,
+    error: false,
+    memory: 0,
+    hasMemory: false,
+    expr: '',
+    historyList: []
+  };
+
+  var MAX_DIGITS = 12;
+  var MAX_HISTORY = 50;
+  var STORE_KEY = 'calc_history_v1';
+  var SYMBOL = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  function sym(op) { return SYMBOL[op] || op; }
+
+  /* ==================== DOM ==================== */
+  var displayEl    = document.getElementById('display');
+  var historyEl    = document.getElementById('history');
+  var keysEl       = document.getElementById('keys');
+  var memIndicator = document.getElementById('memIndicator');
+  var clearBtn     = document.getElementById('clearBtn');
+  var mcBtn        = document.getElementById('mcBtn');
+  var mrBtn        = document.getElementById('mrBtn');
+  var hpListEl     = document.getElementById('hpList');
+  var hpClearBtn   = document.getElementById('hpClearBtn');
+
+  /* ==================== 工具函数 ==================== */
+
+  function compute(a, op, b) {
+    var r;
+    switch (op) {
+      case '+': r = a + b; break;
+      case '-': r = a - b; break;
+      case '*': r = a * b; break;
+      case '/':
+        if (b === 0) throw new Error('不能除以 0');
+        r = a / b;
+        break;
+      default: throw new Error('运算错误');
+    }
+    if (!isFinite(r)) throw new Error('数值超出范围');
+    return r;
+  }
+
+  function formatNumber(n) {
+    if (!isFinite(n)) throw new Error('数值超出范围');
+    if (n === 0) return '0';
+    var abs = Math.abs(n);
+    if (abs >= 1e12 || abs < 1e-9) {
+      return n.toExponential(6).replace(/\.?0+e/, 'e');
+    }
+    return String(parseFloat(n.toPrecision(12)));
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* ==================== 本地存储 ==================== */
+
+  function saveHistory() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state.historyList)); } catch (e) {}
+  }
+
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      var arr = JSON.parse(raw);
+      if (Object.prototype.toString.call(arr) === '[object Array]') {
+        state.historyList = arr.slice(0, MAX_HISTORY).filter(function (it) {
+          return it && typeof it.expr === 'string' && typeof it.result === 'string';
+        });
+      }
+    } catch (e) {}
+  }
+
+  /* ==================== 渲染 ==================== */
+
+  function render() {
+    displayEl.textContent = state.current;
+    if (state.error) {
+      displayEl.classList.add('error');
+    } else {
+      displayEl.classList.remove('error');
+    }
+
+    if (state.error) {
+      displayEl.style.fontSize = '30px';
+    } else {
+      var len = state.current.length;
+      var size = 62;
+      if (len > 6)  size = 52;
+      if (len > 9)  size = 44;
+      if (len > 12) size = 36;
+      if (len > 16) size = 30;
+      displayEl.style.fontSize = size + 'px';
+    }
+
+    var ops = keysEl.querySelectorAll('.key.op');
+    for (var i = 0; i < ops.length; i++) {
+      var btn = ops[i];
+      if (state.operator && state.waiting && btn.getAttribute('data-key') === state.operator) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+
+    var isC = state.current !== '0' && !state.waiting && !state.error;
+    clearBtn.textContent = isC ? 'C' : 'AC';
+  }
+
+  function renderHistory(animateFirst) {
+    if (state.historyList.length === 0) {
+      hpListEl.innerHTML = '<div class="hp-empty">暂无记录</div>';
+      hpClearBtn.disabled = true;
+      return;
+    }
+
+    hpClearBtn.disabled = false;
+    var html = '';
+    for (var i = 0; i < state.historyList.length; i++) {
+      var item = state.historyList[i];
+      var cls = 'hp-item' + (animateFirst && i === 0 ? ' new' : '');
+      html += '<div class="' + cls + '" data-index="' + i + '">' +
+                '<div class="hp-expr">' + escapeHtml(item.expr) + '</div>' +
+                '<div class="hp-result">' + escapeHtml(item.result) + '</div>' +
+              '</div>';
+    }
+    hpListEl.innerHTML = html;
+  }
+
+  function addHistory(expr, result) {
+    state.historyList.unshift({ expr: expr, result: result });
+    if (state.historyList.length > MAX_HISTORY) state.historyList.pop();
+    renderHistory(true);
+    saveHistory();
+  }
+
+  function updateMemoryUI() {
+    if (state.hasMemory) {
+      memIndicator.classList.add('on');
+    } else {
+      memIndicator.classList.remove('on');
+    }
+    mcBtn.disabled = !state.hasMemory;
+    mrBtn.disabled = !state.hasMemory;
+  }
+
+  function fail(msg) {
+    state.error = true;
+    state.current = msg;
+    state.previous = null;
+    state.operator = null;
+    state.waiting = false;
+    state.repeatOp = null;
+    state.repeatOperand = null;
+    state.expr = '';
+    render();
+  }
+
+  /* ==================== 计算操作 ==================== */
+
+  function clearAll() {
+    state.current = '0';
+    state.previous = null;
+    state.operator = null;
+    state.waiting = false;
+    state.repeatOp = null;
+    state.repeatOperand = null;
+    state.error = false;
+    state.expr = '';
+    historyEl.textContent = '';
+    render();
+  }
+
+  function clearEntry() {
+    state.current = '0';
+    state.error = false;
+    render();
+  }
+
+  function inputDigit(d) {
+    if (state.error) clearAll();
+    if (state.waiting) {
+      state.current = d;
+      state.waiting = false;
+      state.repeatOp = null;
+      state.repeatOperand = null;
+    } else {
+      var digits = state.current.replace(/[-.]/g, '').length;
+      if (digits >= MAX_DIGITS) return;
+      state.current = state.current === '0' ? d : state.current + d;
+    }
+    render();
+  }
+
+  function inputDot() {
+    if (state.error) clearAll();
+    if (state.waiting) {
+      state.current = '0.';
+      state.waiting = false;
+      state.repeatOp = null;
+      state.repeatOperand = null;
+      render();
+      return;
+    }
+    if (state.current.indexOf('.') !== -1) return;
+    state.current += '.';
+    render();
+  }
+
+  function backspace() {
+    if (state.error) { clearAll(); return; }
+    if (state.waiting) return;
+    var s = state.current;
+    if (s.length <= 1 || (s.length === 2 && s.charAt(0) === '-')) {
+      state.current = '0';
+    } else {
+      state.current = s.slice(0, -1);
+    }
+    render();
+  }
+
+  function negate() {
+    if (state.error || state.current === '0') return;
+    state.waiting = false;
+    state.current = state.current.charAt(0) === '-'
+      ? state.current.slice(1)
+      : '-' + state.current;
+    render();
+  }
+
+  function percent() {
+    if (state.error) return;
+    var value = parseFloat(state.current);
+    var result;
+    if (state.previous !== null &&
+        (state.operator === '+' || state.operator === '-')) {
+      result = (state.previous * value) / 100;
+    } else {
+      result = value / 100;
+    }
+    state.current = formatNumber(result);
+    state.waiting = false;
+    render();
+  }
+
+  function setOperator(op) {
+    if (state.error) clearAll();
+
+    if (state.waiting && state.operator) {
+      state.operator = op;
+      state.expr = state.expr.replace(/[+\-−×÷]\s*$/, sym(op) + ' ');
+      historyEl.textContent = state.expr;
+      render();
+      return;
+    }
+
+    var value = parseFloat(state.current);
+
+    if (state.operator === null) {
+      state.previous = value;
+      state.expr = formatNumber(value) + ' ' + sym(op);
+    } else {
+      var result = compute(state.previous, state.operator, value);
+      state.previous = result;
+      state.current = formatNumber(result);
+      state.expr = state.expr + ' ' + formatNumber(value) + ' ' + sym(op);
+    }
+
+    state.operator = op;
+    state.waiting = true;
+    state.repeatOp = null;
+    state.repeatOperand = null;
+
+    historyEl.textContent = state.expr;
+    render();
+  }
+
+  function equals() {
+    var a, b, op, fullExpr;
+
+    if (state.operator !== null) {
+      a = state.previous;
+      op = state.operator;
+      b = parseFloat(state.current);
+      fullExpr = state.expr + ' ' + formatNumber(b) + ' =';
+    } else if (state.repeatOp !== null) {
+      a = parseFloat(state.current);
+      op = state.repeatOp;
+      b = state.repeatOperand;
+      fullExpr = formatNumber(a) + ' ' + sym(op) + ' ' + formatNumber(b) + ' =';
+    } else {
+      return;
+    }
+
+    var result = compute(a, op, b);
+    historyEl.textContent = fullExpr;
+
+    state.current = formatNumber(result);
+    state.previous = null;
+    state.operator = null;
+    state.waiting = true;
+    state.repeatOp = op;
+    state.repeatOperand = b;
+    state.expr = '';
+
+    addHistory(fullExpr, state.current);
+    render();
+  }
+
+  /* ==================== 记忆功能 ==================== */
+
+  function memoryClear() {
+    state.memory = 0;
+    state.hasMemory = false;
+    updateMemoryUI();
+  }
+
+  function memoryRecall() {
+    if (!state.hasMemory) return;
+    if (state.error) clearAll();
+    state.current = formatNumber(state.memory);
+    state.waiting = false;
+    state.repeatOp = null;
+    state.repeatOperand = null;
+    render();
+  }
+
+  function memoryAdd(sign) {
+    if (state.error) clearAll();
+    var value = parseFloat(state.current) * sign;
+    if (!isFinite(value)) throw new Error('数值无效');
+    var total = state.memory + value;
+    if (!isFinite(total)) throw new Error('记忆值超出范围');
+    state.memory = parseFloat(total.toPrecision(12));
+    state.hasMemory = true;
+    updateMemoryUI();
+  }
+
+  /* ==================== 统一入口 ==================== */
+
+  function handleKey(key) {
+    if (state.error && key !== 'clear') clearAll();
+
+    try {
+      switch (key) {
+        case 'clear':
+          if (clearBtn.textContent === 'C') clearEntry();
+          else clearAll();
+          break;
+        case 'backspace': backspace(); break;
+        case 'percent':   percent();   break;
+        case 'negate':    negate();    break;
+        case '=':         equals();    break;
+        case '.':         inputDot();  break;
+        case 'mc':        memoryClear();  break;
+        case 'mr':        memoryRecall(); break;
+        case 'm-plus':    memoryAdd(1);   break;
+        case 'm-minus':   memoryAdd(-1);  break;
+        case '+': case '-': case '*': case '/':
+          setOperator(key);
+          break;
+        default:
+          if (/^\d$/.test(key)) inputDigit(key);
+      }
+    } catch (err) {
+      fail(err.message || '错误');
+    }
+  }
+
+  /* ==================== 事件绑定 ==================== */
+
+  document.querySelector('.calculator').addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button[data-key]') : null;
+    if (btn && !btn.disabled) handleKey(btn.getAttribute('data-key'));
+  });
+
+  hpListEl.addEventListener('click', function (e) {
+    var item = e.target.closest ? e.target.closest('.hp-item') : null;
+    if (!item) return;
+    var rec = state.historyList[Number(item.getAttribute('data-index'))];
+    if (!rec) return;
+    if (state.error) clearAll();
+    state.current = rec.result;
+    state.waiting = true;
+    state.repeatOp = null;
+    state.repeatOperand = null;
+    state.expr = '';
+    render();
+  });
+
+  hpClearBtn.addEventListener('click', function () {
+    state.historyList = [];
+    renderHistory(false);
+    saveHistory();
+  });
+
+  function flashButton(key) {
+    var btn = document.querySelector('button[data-key="' + key + '"]');
+    if (!btn || btn.disabled) return;
+    btn.classList.add('pressed');
+    setTimeout(function () { btn.classList.remove('pressed'); }, 110);
+  }
+
+  window.addEventListener('keydown', function (e) {
+    var k = e.key;
+    var mapped = null;
+    if (/^[0-9]$/.test(k))                        mapped = k;
+    else if (k === '.' || k === ',')              mapped = '.';
+    else if (k === '+' || k === '-')              mapped = k;
+    else if (k === '*' || k === 'x' || k === 'X') mapped = '*';
+    else if (k === '/')                           mapped = '/';
+    else if (k === 'Enter' || k === '=')          mapped = '=';
+    else if (k === 'Escape')                      mapped = 'clear';
+    else if (k === 'Backspace')                   mapped = 'backspace';
+    else if (k === '%')                           mapped = 'percent';
+    if (mapped === null) return;
+    e.preventDefault();
+    handleKey(mapped);
+    flashButton(mapped);
+  });
+
+  /* 阻止双击缩放 */
+  var lastTouch = 0;
+  document.addEventListener('touchend', function (e) {
+    var now = Date.now();
+    if (now - lastTouch < 300) e.preventDefault();
+    lastTouch = now;
+  }, { passive: false });
+
+  /* ==================== 启动 ==================== */
+  loadHistory();
+  clearAll();
+  updateMemoryUI();
+  renderHistory(false);
+})();
+</script>
+</body>
+</html>
